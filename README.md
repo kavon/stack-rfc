@@ -132,8 +132,10 @@ Note how the callee is also returning the stack pointer to its caller,
 which is wrapped up in the layout token.
 
 
-Related Work
+Related Ideas
 ------
+
+#### Coroutines
 
 The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM appear
 to be similiar to this proposal, since they both deal with the concept of
@@ -148,3 +150,12 @@ calls in a garbage-collected runtime system. **TODO** Problems include:
 2. Incompatible with general function calls, only ugly tricks that involve
 a trampoline.
 3. Inhibits optimization of the LLVM IR if we just generate pre-split code!
+
+
+#### Calling Conventions
+
+Calling conventions in LLVM can only specify the layout of function arguments
+on the internal stack.
+A sopisticated lowering of a calling convention can be used to implement many
+parts of this proposal (not all), however, it would need to be done specifically
+for one LLVM front-end.
