@@ -6,18 +6,15 @@ Introduction
 ------
 
 LLVM's Garbage Collection (GC) [Statepoints](http://llvm.org/docs/Statepoints.html) provide support for language runtime systems that use precise GC.
-The primary function of the Statepoints system is to output information alongside
-the generated assembly that describes where LLVM has placed live pointers in
-each stack frame it has laid out.
-This information [can be used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the front-end language's
-runtime system to identify live pointers in each stack frame during a
-garbage collection cycle.
+The primary function of the Statepoints system is to output information alongside the generated assembly that describes where LLVM has placed live pointers in each stack frame it has laid out.
+This information [can be used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the front-end language's runtime system to identify live pointers in each stack frame during a garbage collection cycle.
 
-With some upgrades, the Statepoints system can go further to support many language runtime systems that have advanced features:
+With some upgrades, the Statepoints system can go further to support many runtime systems that have advanced features:
 
-1. Some operate in a "stackless" mode, where the internal call stack is not in use, and instead a second stack that is passed to the function as an argument is used for calls. This technique is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
+1. A "stackless" mode, where the internal call stack is not in use, and instead a second stack that is passed to the function as an argument is used for calls.
+This technique is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
 
-2. Some runtime systems have special layouts for their call stacks, for example, to support custom exception-handling mechanisms or a lazy evaluation strategy.
+2. Special layouts for their call stacks, for example, to support custom exception-handling mechanisms or a lazy evaluation strategy.
 
 
 Proposal
