@@ -123,13 +123,13 @@ define {i64*, i64} @bar(i64*, i64) {
   %layoutTok = call token @llvm.frame.layout(i64* %sp, ; stack pointer
                                i32 16    ; return address offset
                                )
-  tail call void @llvm.frame.return(token %layoutTok, i64 12)
-  unreachable
+  %retTok = call {i64*, i64} @llvm.frame.return.TYPE(token %layoutTok, i64 12)
+  ret {i64*, i64} %retTok
 }
 ```
 
 Note how the callee is also returning the stack pointer to its caller,
-which is wrapped up in the layout token.
+which was wrapped up in the layout token.
 
 
 Related Ideas
