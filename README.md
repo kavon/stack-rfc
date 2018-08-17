@@ -5,6 +5,15 @@ Supporting Lightweight Threading with Garbage Collection using LLVM
 This `README` represents a plain-text summary of the full paper found under
 the `paper` directory.
 
+<!--
+NOTE:
+
+Check out:
+1. https://www.cs.tufts.edu/~nr/pubs/staged-abstract.html
+2. https://www.cs.tufts.edu/~nr/pubs/blocks-abstract.html
+
+-->
+
 Introduction
 ------
 
@@ -17,13 +26,19 @@ With some upgrades, the Statepoints system can go further to support many runtim
 1. A "stackless" mode, where the internal call stack is not in use, and instead a second stack that is passed to the function as an argument is used for calls.
 This technique is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
 
-2. Special layouts for their call stacks, for example, to support custom exception-handling mechanisms or a lazy evaluation strategy.
+2. Special layouts for call stacks, for example, to support custom exception-handling mechanisms or a lazy evaluation strategy.
+
+<!-- NOTE:
+
+Cilk also had some sort of continuation/call stack hacking to optimize common cases in a work-stealing environment.
+
+-->
 
 
 Proposal
 ------
 
-The main component of this proposal visible to the user are the new intrinsics
+The main component of this proposal are the new intrinsics
 that enable the description of both the **layout** and **location** of the stack
 frame to use when peforming a call, and **rules** about certian values in the
 frame so that a moving garbage collector can update them.
