@@ -27,8 +27,8 @@ This information [can be used](https://github.com/kavon/llvm-statepoint-utils) b
 
 The Statepoints system can go further to support runtime systems that have a "stackless" mode, where the normal call stack is not in use. A second stack, represented as a pointer value in the IR, is passed to the function as an argument to be used for function calls & return.
 
-A stackless model is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads). For example, Cilk has used this type of green thread for their concurrent work-stealing runtime system [1,2].
-The model can also be used to efficiently implement other control mechanisms derived from call-with-current-continuation, which is found in a number of languages like Ruby and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
+Stackless models are used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads). For example, Cilk has used this type of green thread for their concurrent work-stealing runtime system [1,2].
+The model can also be used to efficiently implement other control mechanisms derived from `call-with-current-continuation`, which is found in a number of languages like [Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html) and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
 
 
 Proposal
@@ -144,14 +144,11 @@ which was wrapped up in the layout token.
 
 
 Related Ideas
-------
+-------------
 
 #### Coroutines
 
-The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM appear
-to be similiar to this proposal, since they both deal with the concept of
-suspending and resuming a function, but coroutines are different in a number
-of important ways.
+The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM may appear to be similiar to this proposal, since they both deal with the concept of suspending and resuming a function, but LLVM's coroutines are different in a number of important ways.
 
 The [coroutine lowering passes](https://llvm.org/docs/Coroutines.html#coroutine-transformation) involve splitting IR functions apart at each suspension point and inserting a return of the frame laid out by the pass.
 This may work just fine for implementing coroutines, but not for general function
