@@ -1,6 +1,10 @@
-
-Supporting Lightweight Threading with Garbage Collection using LLVM
+Extending GC Statepoints for Stackless Runtime Models
 ======
+
+Notes
+-------
+
+Alternative Title: *Supporting Lightweight Threading with Garbage Collection using LLVM*
 
 This `README` represents a plain-text summary of the full paper found under
 the `paper` directory.
@@ -18,21 +22,13 @@ Introduction
 ------
 
 LLVM's Garbage Collection (GC) [Statepoints](http://llvm.org/docs/Statepoints.html) provide support for language runtime systems that use precise GC.
-The primary function of the Statepoints system is to output information alongside the generated assembly that describes where LLVM has placed live pointers in each frame of the internal call stack.
+The primary goal of the Statepoints system is to output information alongside the generated assembly that describes where the code generator has placed live pointers in each frame of the call stack.
 This information [can be used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the front-end language's runtime system to identify live pointers in each stack frame during a garbage collection cycle.
 
-With some upgrades, the Statepoints system can go further to support many runtime systems that have advanced features:
+The Statepoints system can go further to support runtime systems that have a "stackless" mode, where the normal call stack is not in use. A second stack, represented as a pointer value in the IR, is passed to the function as an argument to be used for function calls & return.
 
-1. A "stackless" mode, where the internal call stack is not in use, and instead a second stack that is passed to the function as an argument is used for calls.
-This technique is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
-
-2. Special layouts for call stacks, for example, to support custom exception-handling mechanisms or a lazy evaluation strategy.
-
-<!-- NOTE:
-
-Cilk also had some sort of continuation/call stack hacking to optimize common cases in a work-stealing environment.
-
--->
+A stackless model is often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads). For example, Cilk has used this type of green thread for their concurrent work-stealing runtime system [1,2].
+The model can also be used to efficiently implement other control mechanisms derived from call-with-current-continuation, which is found in a number of languages like Ruby and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
 
 
 Proposal
@@ -174,3 +170,10 @@ on the internal stack.
 A sopisticated lowering of a calling convention can be used to implement many
 parts of this proposal (not all), however, it would need to be done specifically
 for one LLVM front-end.
+
+
+References
+----------
+
+1. Blumofe, Robert D., et al. "Cilk: An efficient multithreaded runtime system." Journal of Parallel and Distributed Computing 37.1 (1996): 55-69.
+2. Frigo, Matteo, Charles E. Leiserson, and Keith H. Randall. "The implementation of the Cilk-5 multithreaded language." ACM Sigplan Notices 33.5 (1998): 212-223.
