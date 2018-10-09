@@ -17,13 +17,39 @@ The stackless model can also be used to efficiently implement other control-flow
 Current Functionality
 ---------------------
 
+The current [Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic) is a wrapper for a call to a function during which a garbage-collection cycle may occur.
+A Statepoint enables the construction of code with the property that a garbage-collected pointer's value may change during the call (to support moving GC). That is, after the call returns, you must use the new, relocated pointer returned by [`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic) in the IR, as the prior version is no longer valid.
 
+In the following (simplified) example, `@foo` performs the call `@bar(42)` using a statepoint. This allows the garbage collector to locate the GC pointer `%ptr` in `@foo`'s stack frame if the collector is invoked during the execution of `@bar`.
 
-**TODO** Example explaining how the frame **layout** and **location** are completely left up to the code generator.
+```llvm
 
-The statepoint intrinsic encapsulates the main property that the GC pointer's raw value can possibly change during the call (to support moving GC), i.e., obtaining the new value from the token models this property in the IR.
+define i32 @bar(i32 %arg) { ... }
 
-The implementation of Statepoints in the code-generator lays out part of the frame for the GC pointer values so they are at known locations, and communicates that information by outputting it alongside the ASM.
+define i32 @foo(i32 %arg) {
+  ;;; ...
+  %ptr = ; an i64*, tracked by the GC
+  %raw = ; an i32
+
+  ;;; perform the call @bar(42)
+  %tok = call token @llvm.gc.statepoint(
+             i32 (i32) @bar, ; callee
+             i32 42,         ; arg(s)
+             i64* %ptr       ; gc pointer(s)
+             )
+
+  ;;; %ptr is now invalid. must use relocated version.
+  %relo_ptr = call i64* @llvm.gc.relocate(token %tok, i32 1)
+
+  ;;; obtain the value returned by @bar
+  %retVal = call i32 @llvm.gc.result(token %tok)
+
+  ;;; ... uses of %raw, %relo_ptr, etc ...
+}
+```
+
+The implementation of Statepoints in the code generator is responsible for lowering the `gc.statepoint` call into an ordinary call where, just before the call, the GC pointers are always saved somewhere in the stack frame.
+The location chosen within the stack frame is communicated to the language implementor through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
 
 
 
