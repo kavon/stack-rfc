@@ -25,8 +25,7 @@ A Statepoint enables the construction of code with the property that a garbage-c
 In the following (simplified) example, `@foo` performs the call `@bar(42)` using the `gc.statepoint` intrinsic. This use of the intrinsic tells the code generator that the garbage collector needs the ability to locate the GC pointer `%ptr` in `@foo`'s stack frame, since the collector may be invoked during the execution of `@bar`.
 
 ```llvm
-
-define i32 @bar(i32 %arg) { ... }
+declare {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32 %arg)
 
 define i32 @foo(i32 %arg) {
   ;;; ...
@@ -77,10 +76,8 @@ This can be achieved using the proposed `gc.frame` intrinsics below.
 
 ```llvm
 %stack_ty = type i64*
-
 declare %stack_ty @AllocHeap(i32)
-
-define {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32 %arg) { ... }
+declare {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32 %arg)
 
 define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
   ;;; ...
