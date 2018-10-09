@@ -12,6 +12,8 @@ The Statepoints system can go further to support runtime systems that have a "st
 
 Stackless models are often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads). For example, Cilk has used this type of green thread for their concurrent work-stealing runtime system [1,2].
 The stackless model can also be used to efficiently implement other control-flow mechanisms derived from `call-with-current-continuation`, which is found in a number of languages like [Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html) and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
+Some compilers for functional languages such as [Haskell](https://en.wikipedia.org/wiki/Glasgow_Haskell_Compiler), [Standard ML](https://en.wikipedia.org/wiki/Standard_ML_of_New_Jersey), and Scheme also use this "stackless" approach.
+
 
 
 Current Functionality
@@ -52,12 +54,17 @@ The implementation of Statepoints in the code generator is responsible for lower
 The location chosen within the stack frame is communicated to the garbage collector through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
 
 
+
 Proposal
 --------
 
-To support the stackless model, we need the ability to specify the _location_ of the stack frame in memory, and a partial _layout_ of the stack frame.
-We cannot use the existing stack, since in a stackless model we have a second stack (which is typically heap allocated) that we explicitly allocate and use.
+To support the stackless model, we need the ability to specify the _location_ of the stack frame in the heap.
+We cannot use the existing stack that LLVM assumes is present, since in a stackless model we have a second "stack" (which is typically heap allocated) that we explicitly initialize and use.
 
+In addition, we need the ability to partially control the _layout_ of the frame so that this second "stack" can be used by the generated code. Specifying where GC pointers should be placed is pretty simple.
+Since the other required components of a stack frame, the call's return address and register spills are not real values in the IR, we need an abstraction to tell the code generator where they should be placed.
+
+<!--
 
 **TODO: clarify the rest of this section**
 
@@ -65,6 +72,11 @@ The main component of this proposal are the new intrinsics
 that enable the description of both the **layout** and **location** of the stack
 frame to use when peforming a call, and **rules** about certian values in the
 frame so that a moving garbage collector can update them.
+
+-->
+
+
+-----------
 
 ### Function Call
 
