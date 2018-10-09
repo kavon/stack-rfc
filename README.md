@@ -52,12 +52,12 @@ The implementation of Statepoints in the code generator is responsible for lower
 The location chosen within the stack frame is communicated to the garbage collector through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
 
 
-
-
 Proposal
 --------
 
-We can support the stackless model by providing the ability to specify the location and partial layout of the stack frame.
+To support the stackless model, we need the ability to specify the _location_ of the stack frame in memory, and a partial _layout_ of the stack frame.
+We cannot use the existing stack, since in a stackless model we have a second stack (which is typically heap allocated) that we explicitly allocate and use.
+
 
 **TODO: clarify the rest of this section**
 
