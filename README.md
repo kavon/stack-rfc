@@ -69,8 +69,8 @@ Thus, we add an abstraction to tell the code generator where they should be plac
 
 ### Examples
 
-Let's consider our first example written for a "stackless" model.
-Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`.
+Let's consider our first example, where `@foo` calls `@bar`, written for a "stackless" model.
+Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`, as their first argument when called, and the first structure member on return.
 In addition, we want to specify the following layout for the frame to be compatible with our runtime system, from low to high addresses: GC pointers, return address, non-GC values, register spills.
 This can be achieved using the proposed `gc.frame` intrinsics below.
 
@@ -90,33 +90,54 @@ define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
   %sp = call %stack_ty @AllocHeap(i32 %frame_sz)
 
   ;;; NEW: specify a layout for the frame
-  %buildTok = call token @llvm.gc.frame.layout(
+  %frameTok = call token @llvm.gc.frame.layout(
         %stack_ty %sp,  ; where to allocate the stack frame
-        i32 1,          ; arg num that callee accepts the stack
         i32 16,         ; byte offset for return address
         i32 32          ; byte offset for start of spill area
     )
 
   ;;; NEW: record frame writes at specified byte offsets
-  call void @llvm.gc.frame.save(token %buildTok, %stack_ty %sp_arg, i32 0)
-  call void @llvm.gc.frame.save(token %buildTok, i64* %ptr, i32 8)
-  call void @llvm.gc.frame.save(token %buildTok, i64* %raw, i32 24)
+  call void @llvm.gc.frame.save(token %frameTok, %stack_ty %sp_arg, i32 0)
+  call void @llvm.gc.frame.save(token %frameTok, i64* %ptr, i32 8)
+  call void @llvm.gc.frame.save(token %frameTok, i64* %raw, i32 24)
 
   ;;; perform the call @bar(42)
   %tok = call token @llvm.gc.frame.statepoint(
              i32 (i32) @bar,   ; callee
              i32 42,           ; arg(s)
-             token %buildTok   ; frame layout
+             token %frameTok   ; frame layout
              )
 
-             TODO
+  ;;; NEW: %sp and %frameTok are now invalid since the GC might have
+  ;;; relocated the frame. we obtain the new version.
+  %relo_frameTok = call token @llvm.gc.frame.accessor(token %tok)
+
+  ;;; %ptr is now invalid. must use relocated version. NEW: now a byte offset
+  %relo_ptr = call i64* @llvm.gc.frame.load(token %relo_frameTok, i32 8)
+
+  ;;; obtain the value(s) returned by @bar
+  %retVal = call i32 @llvm.gc.frame.result(token %tok)
 
   ;;; ... uses of %raw, %relo_ptr, etc ...
 }
 ```
 
+Note that the primary changes here are an expansion of certian aspects that were previously left undefined in `gc.statepoint` to allow more control by fron
+t-ends:
+
+** TODO: parallel structure, go over points 1 and 2 with this example in mind **
+
+(1)
+
+
+In addition, for this example we saved the non-pointer value `%raw` to a specific location in the stack frame, but did not reload it after the call resumed.
+Just as in `gc.statepoint`, any values that are used after the call to `@bar` that are *not* explicitly saved in the frame will be automatically stored (and reloaded from) the spill area.
+This applies to both explicit LLVM IR values and any values generated during code generation.
+As usual, it is assumed that the garbage collector will not modify the spill area.
+
 -----------
 
+<!--
 ### Function Call
 
 Here is an example of making a function call, where we build a continuation
@@ -195,6 +216,7 @@ Notes:
     both explicit LLVM IR values and any values generated during codegen.
   - If the spill area is insufficient, an error is thrown.
 
+-->
 
 ### Function Return
 
