@@ -127,13 +127,15 @@ t-ends:
 
 ** TODO: parallel structure, go over points 1 and 2 with this example in mind **
 
-(1)
+(1) `gc.frame.layout` wraps the pointer to the frame (i.e., location) along with some layout requirements for the non-representable values, the return address and spill area.
+
+(2) `gc.frame.save` corresponds to the varargs list of GC pointers in `gc.statepoint` calls. `gc.frame.reload` corresponds to `gc.relocate`.
 
 
 In addition, for this example we saved the non-pointer value `%raw` to a specific location in the stack frame, but did not reload it after the call resumed.
 Just as in `gc.statepoint`, any values that are used after the call to `@bar` that are *not* explicitly saved in the frame will be automatically stored (and reloaded from) the spill area.
 This applies to both explicit LLVM IR values and any values generated during code generation.
-As usual, it is assumed that the garbage collector will not modify the spill area.
+As usual, it is assumed that the garbage collector will not modify the spill area or return address.
 
 -----------
 
