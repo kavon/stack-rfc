@@ -31,8 +31,26 @@ Stackless models are used to implement lightweight [green threads](https://en.wi
 The model can also be used to efficiently implement other control mechanisms derived from `call-with-current-continuation`, which is found in a number of languages like [Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html) and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
 
 
+Current Functionality
+---------------------
+
+
+
+**TODO** Example explaining how the frame **layout** and **location** are completely left up to the code generator.
+
+The statepoint intrinsic encapsulates the main property that the GC pointer's raw value can possibly change during the call (to support moving GC), i.e., obtaining the new value from the token models this property in the IR.
+
+The implementation of Statepoints in the code-generator lays out part of the frame for the GC pointer values so they are at known locations, and communicates that information by outputting it alongside the ASM.
+
+
+
+
 Proposal
-------
+--------
+
+We can support the stackless model by providing the ability to specify the location and partial layout of the stack frame.
+
+**TODO: clarify the rest of this section**
 
 The main component of this proposal are the new intrinsics
 that enable the description of both the **layout** and **location** of the stack
@@ -141,6 +159,11 @@ define {i64*, i64} @bar(i64*, i64) {
 
 Note how the callee is also returning the stack pointer to its caller,
 which was wrapped up in the layout token.
+
+Prototype
+---------
+
+**TODO** link to a diff on github and explain the current state of the cpscall patch, and how this proposal is a more general version of that patch.
 
 
 Related Ideas
