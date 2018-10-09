@@ -20,7 +20,7 @@ Current Functionality
 The current [Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic) is a wrapper for a call to a function during which a garbage-collection cycle may occur.
 A Statepoint enables the construction of code with the property that a garbage-collected pointer's value may change during the call (to support moving GC). That is, after the call returns, you must use the new, relocated pointer returned by [`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic) in the IR, as the prior version is no longer valid.
 
-In the following (simplified) example, `@foo` performs the call `@bar(42)` using a statepoint. This allows the garbage collector to locate the GC pointer `%ptr` in `@foo`'s stack frame if the collector is invoked during the execution of `@bar`.
+In the following (simplified) example, `@foo` performs the call `@bar(42)` using the `gc.statepoint` intrinsic. This use of the intrinsic tells the code generator that the garbage collector needs the ability to locate the GC pointer `%ptr` in `@foo`'s stack frame, since the collector may be invoked during the execution of `@bar`.
 
 ```llvm
 
@@ -48,8 +48,8 @@ define i32 @foo(i32 %arg) {
 }
 ```
 
-The implementation of Statepoints in the code generator is responsible for lowering the `gc.statepoint` call into an ordinary call where, just before the call, the GC pointers are always saved somewhere in the stack frame.
-The location chosen within the stack frame is communicated to the language implementor through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
+The implementation of Statepoints in the code generator is responsible for lowering the `gc.statepoint` call into an ordinary call where, just before the call, the GC pointers are always saved somewhere in the stack frame for the collector to find.
+The location chosen within the stack frame is communicated to the garbage collector through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
 
 
 
