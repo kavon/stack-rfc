@@ -16,7 +16,7 @@ frame during a garbage collection cycle.
 
 The Statepoints system can go further to support runtime systems that have a
 "stackless" mode, where the normal call stack is not in use. A second stack,
-represented as a pointer value in the IR, is explicity passed to the function as
+represented as a pointer value in the IR, is explicitly passed to the function as
 an argument to be used for further function calls and to return.
 
 Stackless models are often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
@@ -96,7 +96,7 @@ Proposal
 --------
 
 I'm proposing a extension to the existing GC Statepoint functionality, which I
-have seperated into two parts for clarity:
+have separated into two parts for clarity:
 
 (1) To support the stackless model, we need the ability to specify the
 _location_ of the stack frame in the heap. We cannot use the existing stack that
@@ -172,9 +172,9 @@ define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
 }
 ```
 
-Note that the primary changes here are an expansion of certian aspects that were
-previously left undefined in `gc.statepoint` to allow more control by fron
-t-ends:
+Note that the primary changes here are an expansion of certain aspects that were
+previously left undefined in `gc.statepoint` to allow more control by front
+-ends:
 
 (1) `gc.frame.layout` wraps the pointer to the frame (i.e., the location) along
 with some layout requirements for the non-representable values (the return
@@ -234,7 +234,7 @@ In the prototype, `gc.frame.save` and `gc.frame.load` are directly written as
 the raw stack pointer is passed in a call. Thus, this proposal is a much
 improved version that adds:
 
-1. Tigher cooperation with the code generator to ensure that any spills
+1. Tighter cooperation with the code generator to ensure that any spills
 generated during the lowering to assembly, or IR optimizations, are dealt with
 via the spill area specified in the `gc.frame.layout`.
 
@@ -258,7 +258,7 @@ Alternatives Considered
 #### Coroutines
 
 The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM may
-appear to be similiar to this proposal, since they both deal with the concept of
+appear to be similar to this proposal, since they both deal with the concept of
 suspending and resuming a function, but LLVM's coroutines are different in a
 number of important ways.
 
@@ -289,7 +289,7 @@ suspension to a _callee_.
 #### Calling Conventions
 
 Calling conventions in LLVM can only specify the layout of function arguments on
-the internal stack. A sopisticated lowering of a calling convention is
+the internal stack. A sophisticated lowering of a calling convention is
 essentially what we implemented in our earlier prototype (see above), but it is
 not a complete solution. We're also aware of at least one other compiler,
 Standard ML of New Jersey, that is looking to make use of the proposed feature.
