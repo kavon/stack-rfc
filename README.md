@@ -4,26 +4,57 @@ Extending GC Statepoints for Stackless Runtime Models
 Introduction
 ------------
 
-LLVM's Garbage Collection (GC) [Statepoints](http://llvm.org/docs/Statepoints.html) provide support for language runtime systems that use precise GC.
-The primary goal of the Statepoints system is to output information alongside the generated assembly that describes where the code generator has placed live pointers in each frame of the call stack.
-This information [can be used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the front-end language's runtime system to identify live pointers in each stack frame during a garbage collection cycle.
+LLVM's Garbage Collection (GC)
+[Statepoints](http://llvm.org/docs/Statepoints.html) provide support for
+language runtime systems that use precise GC. The primary goal of the
+Statepoints system is to output information alongside the generated assembly
+that describes where the code generator has placed live pointers in each frame
+of the call stack. This information [can be
+used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the
+front-end language's runtime system to identify live pointers in each stack
+frame during a garbage collection cycle.
 
-The Statepoints system can go further to support runtime systems that have a "stackless" mode, where the normal call stack is not in use. A second stack, represented as a pointer value in the IR, is explicity passed to the function as an argument to be used for further function calls and to return.
+The Statepoints system can go further to support runtime systems that have a
+"stackless" mode, where the normal call stack is not in use. A second stack,
+represented as a pointer value in the IR, is explicity passed to the function as
+an argument to be used for further function calls and to return.
 
-Stackless models are often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads). For example, Cilk has used this type of green thread for their concurrent work-stealing runtime system [1,2].
-The stackless model can also be used to efficiently implement other control-flow mechanisms derived from `call-with-current-continuation`, which is found in a number of languages like [Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html) and is also [available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html) for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
-Some compilers for functional languages such as [Haskell](https://en.wikipedia.org/wiki/Glasgow_Haskell_Compiler), [Standard ML](https://en.wikipedia.org/wiki/Standard_ML_of_New_Jersey), and Scheme also use this "stackless" approach.
+Stackless models are often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
+For example, Cilk has used this type of green thread for their concurrent
+work-stealing runtime system [1,2].
+The stackless model can also be used to efficiently implement other control-flow
+mechanisms derived from `call-with-current-continuation`, which is found in a
+number of languages like
+[Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html)
+and is also
+[available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html)
+for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
+Some compilers for functional languages such as [Haskell](https://en.wikipedia.org/wiki/Glasgow_Haskell_Compiler),
+[Standard ML](https://en.wikipedia.org/wiki/Standard_ML_of_New_Jersey),
+and Scheme also use this "stackless" approach.
 
 
 
 Current Functionality
 ---------------------
 
-The current [Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic) is a wrapper for a call to a function during which a garbage-collection cycle may occur.
-A Statepoint enables the construction of code with the property that a garbage-collected pointer's value may change during the call (to support moving GC). That is, after the call returns, you must use the new, relocated pointer returned by [`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic) in the IR, as the prior version is no longer valid.
-All garbage-collected pointers that are live after the statepoint call returns must appear as an argument to the intrinsic.
+The current
+[Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic)
+is a wrapper for a call to a function during which a garbage-collection cycle
+may occur. A Statepoint enables the construction of code with the property that
+a garbage-collected pointer's value may change during the call (to support
+moving GC). That is, after the call returns, you must use the new, relocated
+pointer returned by
+[`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic)
+in the IR, as the prior version is no longer valid. All garbage-collected
+pointers that are live after the statepoint call returns must appear as an
+argument to the intrinsic.
 
-In the following (simplified) example, `@foo` performs the call `@bar(42)` using the `gc.statepoint` intrinsic. This use of the intrinsic tells the code generator that the garbage collector needs the ability to locate the GC pointer `%ptr` in `@foo`'s stack frame, since the collector may be invoked during the execution of `@bar`.
+In the following (simplified) example, `@foo` performs the call `@bar(42)` using
+the `gc.statepoint` intrinsic. This use of the intrinsic tells the code
+generator that the garbage collector needs the ability to locate the GC pointer
+`%ptr` in `@foo`'s stack frame, since the collector may be invoked during the
+execution of `@bar`.
 
 ```llvm
 declare {%stack_ty, i32} @bar(%stack_ty, i32)
@@ -50,31 +81,48 @@ define i32 @foo(i32 %arg) {
 }
 ```
 
-The implementation of Statepoints in the code generator is responsible for lowering the `gc.statepoint` call into an ordinary call where, just before the call, the GC pointers are always saved somewhere in the stack frame for the collector to find.
-The location chosen within the stack frame is communicated to the garbage collector through an additional data section, [the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format), that is added to the assembly / object file.
+The implementation of Statepoints in the code generator is responsible for
+lowering the `gc.statepoint` call into an ordinary call where, just before the
+call, the GC pointers are always saved somewhere in the stack frame for the
+collector to find.
+The location chosen within the stack frame is communicated to the garbage
+collector through an additional data section,
+[the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format),
+that is added to the assembly / object file.
 
 
 
 Proposal
 --------
 
-I'm proposing a extension to the existing GC Statepoint functionality, which I have seperated into two parts for clarity:
+I'm proposing a extension to the existing GC Statepoint functionality, which I
+have seperated into two parts for clarity:
 
-(1) To support the stackless model, we need the ability to specify the _location_ of the stack frame in the heap.
-We cannot use the existing stack that LLVM assumes is present, since in a stackless model we have a second "stack" (which is typically heap allocated) that we explicitly initialize and use.
-Thus, we add the ability to use an IR value as a pointer to memory where the frame should be allocated.
+(1) To support the stackless model, we need the ability to specify the
+_location_ of the stack frame in the heap. We cannot use the existing stack that
+LLVM assumes is present, since in a stackless model we have a second "stack"
+(which is typically heap allocated) that we explicitly initialize and use. Thus,
+we add the ability to use an IR value as a pointer to memory where the frame
+should be allocated.
 
-(2) In addition, we need the ability to partially control the _layout_ of the frame so that this second "stack" can be used by the code generated by the front-end. Specifying where GC pointers should be placed is pretty simple.
-The other required components of a stack frame, the call's return address and any register spills, are not real values in the IR.
-Thus, we add an abstraction to tell the code generator where they should be placed.
+(2) In addition, we need the ability to partially control the _layout_ of the
+frame so that this second "stack" can be used by the code generated by the
+front-end. Specifying where GC pointers should be placed is pretty simple. The
+other required components of a stack frame, the call's return address and any
+register spills, are not real values in the IR. Thus, we add an abstraction to
+tell the code generator where they should be placed.
 
 #### Function Call
 
-Let's consider our first example, where `@foo` calls `@bar`, written for a "stackless" model.
-Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`, as their first argument when called, and the first structure member on return.
+Let's consider our first example, where `@foo` calls `@bar`, written for a
+"stackless" model. Both `@foo` and `@bar` now accept and return a secondary
+stack, `%sp`, as their first argument when called, and the first structure
+member on return.
 
-In addition, we need to specify a layout for the frame to be compatible with our runtime system: from low to high addresses we have GC pointers, the return address, non-GC values, and then any register spills.
-This can be achieved using the proposed `gc.frame.*` intrinsics below:
+In addition, we need to specify a layout for the frame to be compatible with our
+runtime system: from low to high addresses we have GC pointers, the return
+address, non-GC values, and then any register spills. This can be achieved using
+the proposed `gc.frame.*` intrinsics below:
 
 ```llvm
 %stack_ty = type i64*
@@ -124,25 +172,35 @@ define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
 }
 ```
 
-Note that the primary changes here are an expansion of certian aspects that were previously left undefined in `gc.statepoint` to allow more control by fron
+Note that the primary changes here are an expansion of certian aspects that were
+previously left undefined in `gc.statepoint` to allow more control by fron
 t-ends:
 
-(1) `gc.frame.layout` wraps the pointer to the frame (i.e., the location) along with some layout requirements for the non-representable values (the return address and spill area).
+(1) `gc.frame.layout` wraps the pointer to the frame (i.e., the location) along
+with some layout requirements for the non-representable values (the return
+address and spill area).
 
-(2) The use of `gc.frame.save` corresponds to listing the live GC pointers in `gc.statepoint` calls so they are saved to the frame, however, now we can control the layout within the frame. Similarly, `gc.frame.load` corresponds to Statepoint's `gc.relocate` to freshly load the values that were saved to the frame.
+(2) The use of `gc.frame.save` corresponds to listing the live GC pointers in
+`gc.statepoint` calls so they are saved to the frame, however, now we can
+control the layout within the frame. Similarly, `gc.frame.load` corresponds to
+Statepoint's `gc.relocate` to freshly load the values that were saved to the
+frame.
 
-Just as in `gc.statepoint`, any values that are used after the call to `@bar` that are *not* explicitly stored and reloaded from the frame will be automatically stored and reloaded from the frame's spill area.
-This applies to both explicit LLVM IR values and any values generated during code generation.
-The size of this spill area will be filled in by the code generator via the `gc.frame.spillsz` intrinsic.
-As usual, it is assumed that the garbage collector will not modify the spill area or the return address.
+Just as in `gc.statepoint`, any values that are used after the call to `@bar`
+that are *not* explicitly stored and reloaded from the frame will be
+automatically stored and reloaded from the frame's spill area. This applies to
+both explicit LLVM IR values and any values generated during code generation.
+The size of this spill area will be filled in by the code generator via the
+`gc.frame.spillsz` intrinsic. As usual, it is assumed that the garbage collector
+will not modify the spill area or the return address.
 
 
 #### Function Return
 
-Let's now consider how `@bar` returns back to `@foo`.
-We again use the `gc.frame.layout` intrinsic to describe where
-the return address is located within the the frame `@bar` was given.
-It is up to the front-end to ensure that all frame layouts for callers & callees have matching layout specifications.
+Let's now consider how `@bar` returns back to `@foo`. We again use the
+`gc.frame.layout` intrinsic to describe where the return address is located
+within the the frame `@bar` was given. It is up to the front-end to ensure that
+all frame layouts for callers & callees have matching layout specifications.
 
 ```llvm
 define {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32) {
@@ -156,29 +214,41 @@ define {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32) {
 }
 ```
 
-Note that only a partial layout is required for returning, as the rest of the frame is not needed by `@bar`.
-The vararg `gc.frame.return` intrinsic to bundles up the frame layout along with the returned values.
-In this example, 12 will be returned as the 2nd struct member, as the 1st member is always the stack pointer.
-It is also possible to have a value that is returned via the stack, though we are not pursuing this yet.
+Note that only a partial layout is required for returning, as the rest of the
+frame is not needed by `@bar`. The vararg `gc.frame.return` intrinsic to bundles
+up the frame layout along with the returned values. In this example, 12 will be
+returned as the 2nd struct member, as the 1st member is always the stack
+pointer. It is also possible to have a value that is returned via the stack,
+though we are not pursuing this yet.
 
 
 
 Earlier Prototype
 -----------------
 
-We previously developed a prototype of an [earlier proposal](http://lists.llvm.org/pipermail/llvm-dev/2017-April/112144.html), that works in many, but not all, cases for the Glasgow Haskell Compiler (GHC).
-In the prototype, `gc.frame.save` and `gc.frame.load` are directly written as `store` and `load` instructions.
-It also lacks `gc.frame.layout`, and instead the raw stack pointer is passed in a call.
-Thus, this proposal is a much improved version that adds:
+We previously developed a prototype of an
+[earlier proposal](http://lists.llvm.org/pipermail/llvm-dev/2017-April/112144.html),
+that works in many, but not all, cases for the Glasgow Haskell Compiler (GHC).
+In the prototype, `gc.frame.save` and `gc.frame.load` are directly written as
+`store` and `load` instructions. It also lacks `gc.frame.layout`, and instead
+the raw stack pointer is passed in a call. Thus, this proposal is a much
+improved version that adds:
 
-1. Tigher cooperation with the code generator to ensure that any spills generated during the lowering to assembly, or IR optimizations, are dealt with via the spill area specified in the `gc.frame.layout`.
+1. Tigher cooperation with the code generator to ensure that any spills
+generated during the lowering to assembly, or IR optimizations, are dealt with
+via the spill area specified in the `gc.frame.layout`.
 
-2. Usage of the `ret` IR instruction so that these intrinsics are better understood by optimizations and users.
+2. Usage of the `ret` IR instruction so that these intrinsics are better
+understood by optimizations and users.
 
-3. Usage of `gc.frame.save` and `gc.frame.load` instead of `store` and `load` to simplify data-flow analysis, as is the case for Statepoints.
+3. Usage of `gc.frame.save` and `gc.frame.load` instead of `store` and `load` to
+simplify data-flow analysis, as is the case for Statepoints.
 
-You can find the patch of this of the earlier proposal [here](https://github.com/kavon/ghc-llvm/compare/master...with-intrinsic).
-The general approach we took was to implement a pseudo-instruction that is expanded after ISel, so the majority of the patch is a function that performs the expansion.
+You can find the patch of this of the earlier proposal
+[here](https://github.com/kavon/ghc-llvm/compare/master...with-intrinsic).
+The general approach we took was to implement a pseudo-instruction that is
+expanded after ISel, so the majority of the patch is a function that performs
+the expansion.
 
 
 
@@ -187,28 +257,44 @@ Alternatives Considered
 
 #### Coroutines
 
-The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM may appear to be similiar to this proposal, since they both deal with the concept of suspending and resuming a function, but LLVM's coroutines are different in a number of important ways.
+The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM may
+appear to be similiar to this proposal, since they both deal with the concept of
+suspending and resuming a function, but LLVM's coroutines are different in a
+number of important ways.
 
-The [coroutine lowering passes](https://llvm.org/docs/Coroutines.html#coroutine-transformation) involve splitting IR functions apart at each suspension point and inserting a return of the frame laid out by the pass.
-The splitting is needed in order to provide an address at which to resume execution of a coroutine frame.
+The
+[coroutine lowering passes](https://llvm.org/docs/Coroutines.html#coroutine-transformation)
+involve splitting IR functions apart at each suspension point and inserting a
+return of the frame laid out by the pass. The splitting is needed in order to
+provide an address at which to resume execution of a coroutine frame.
 
-This splitting transformation may work fine for implementing coroutines, but splitting functions apart at each function call renders LLVM's optimizations ineffective.
-This is why splitting for coroutine lowering is done late in the process.
+This splitting transformation may work fine for implementing coroutines, but
+splitting functions apart at each function call renders LLVM's optimizations
+ineffective. This is why splitting for coroutine lowering is done late in the
+process.
 
-A front-end using a stackless runtime model has already threaded the secondary stack throughout the whole program, so it is not possible to avoid splitting the program apart when initially generating LLVM IR.
-With our proposed extensions, we would only be splitting basic blocks apart during code generation.
-In addition, a garbage-collected runtime system must understand the layout of objects within each frame, whereas this layout in the LLVM coroutine implementation is not defined.
+A front-end using a stackless runtime model has already threaded the secondary
+stack throughout the whole program, so it is not possible to avoid splitting the
+program apart when initially generating LLVM IR. With our proposed extensions,
+we would only be splitting basic blocks apart during code generation. In
+addition, a garbage-collected runtime system must understand the layout of
+objects within each frame, whereas this layout in the LLVM coroutine
+implementation is not defined.
 
-Thus, while it may be possible to try and extend coroutines in LLVM, extending Statepoints make much more sense.
-Coroutines are concerned with _returning_ a suspension to the _caller_, whereas a function call is fundamentally passing a suspension to a _callee_.
+Thus, while it may be possible to try and extend coroutines in LLVM, extending
+Statepoints make much more sense. Coroutines are concerned with _returning_ a
+suspension to the _caller_, whereas a function call is fundamentally passing a
+suspension to a _callee_.
 
 #### Calling Conventions
 
-Calling conventions in LLVM can only specify the layout of function arguments
-on the internal stack.
-A sopisticated lowering of a calling convention is essentially what we implemented in our earlier prototype (see above), but it is not a complete solution.
-We're also aware of at least one other compiler, Standard ML of New Jersey, that is looking to make use of the proposed feature.
-So, hacking fixes into LLVM's code generator specific to the GHC calling convention is unattractive from a reusability standpoint.
+Calling conventions in LLVM can only specify the layout of function arguments on
+the internal stack. A sopisticated lowering of a calling convention is
+essentially what we implemented in our earlier prototype (see above), but it is
+not a complete solution. We're also aware of at least one other compiler,
+Standard ML of New Jersey, that is looking to make use of the proposed feature.
+So, hacking fixes into LLVM's code generator specific to the GHC calling
+convention is unattractive from a reusability standpoint.
 
 
 
@@ -223,5 +309,8 @@ the `paper` directory.
 References
 ----------
 
-1. Blumofe, Robert D., et al. "Cilk: An efficient multithreaded runtime system." Journal of Parallel and Distributed Computing 37.1 (1996): 55-69.
-2. Frigo, Matteo, Charles E. Leiserson, and Keith H. Randall. "The implementation of the Cilk-5 multithreaded language." ACM Sigplan Notices 33.5 (1998): 212-223.
+1. Blumofe, Robert D., et al. "Cilk: An efficient multithreaded runtime system."
+Journal of Parallel and Distributed Computing 37.1 (1996): 55-69.
+2. Frigo, Matteo, Charles E. Leiserson, and Keith H. Randall.
+"The implementation of the Cilk-5 multithreaded language." ACM Sigplan Notices
+33.5 (1998): 212-223.
