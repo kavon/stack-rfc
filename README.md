@@ -68,7 +68,7 @@ Thus, we add the ability to use an IR value as a pointer to memory where the fra
 The other required components of a stack frame, the call's return address and any register spills, are not real values in the IR.
 Thus, we add an abstraction to tell the code generator where they should be placed.
 
-### Function Call
+#### Function Call
 
 Let's consider our first example, where `@foo` calls `@bar`, written for a "stackless" model.
 Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`, as their first argument when called, and the first structure member on return.
@@ -137,7 +137,7 @@ The size of this spill area will be filled in by the code generator via the `gc.
 As usual, it is assumed that the garbage collector will not modify the spill area or the return address.
 
 
-### Function Return
+#### Function Return
 
 Let's now consider how `@bar` returns back to `@foo`.
 We again use the `gc.frame.layout` intrinsic to describe where
@@ -162,17 +162,18 @@ In this example, 12 will be returned as the 2nd struct member, as the 1st member
 It is also possible to have a value that is returned via the stack, though we are not pursuing this yet.
 
 
+
 Earlier Prototype
 -----------------
 
-We previously developed a prototype of an [earlier proposal](http://lists.llvm.org/pipermail/llvm-dev/2017-April/112144.html), that works in many, but not all, cases for the Glasgow Haskell Compiler.
+We previously developed a prototype of an [earlier proposal](http://lists.llvm.org/pipermail/llvm-dev/2017-April/112144.html), that works in many, but not all, cases for the Glasgow Haskell Compiler (GHC).
 In the prototype, `gc.frame.save` and `gc.frame.load` are directly written as `store` and `load` instructions.
 It also lacks `gc.frame.layout`, and instead the raw stack pointer is passed in a call.
 Thus, this proposal is a much improved version that adds:
 
 1. Tigher cooperation with the code generator to ensure that any spills generated during the lowering to assembly, or IR optimizations, are dealt with via the spill area specified in the `gc.frame.layout`.
 
-2. Usage of the `ret` instruction so that these intrinsics are better understood by IR optimizations.
+2. Usage of the `ret` IR instruction so that these intrinsics are better understood by optimizations and users.
 
 3. Usage of `gc.frame.save` and `gc.frame.load` instead of `store` and `load` to simplify data-flow analysis, as is the case for Statepoints.
 
@@ -189,22 +190,25 @@ Alternatives Considered
 The work on [coroutines](https://llvm.org/docs/Coroutines.html) in LLVM may appear to be similiar to this proposal, since they both deal with the concept of suspending and resuming a function, but LLVM's coroutines are different in a number of important ways.
 
 The [coroutine lowering passes](https://llvm.org/docs/Coroutines.html#coroutine-transformation) involve splitting IR functions apart at each suspension point and inserting a return of the frame laid out by the pass.
-This may work just fine for implementing coroutines, but not for general function
-calls in a garbage-collected runtime system. **TODO** Problems include:
+The splitting is needed in order to provide an address at which to resume execution of a coroutine frame.
 
-1. Lack of control over layout, and probably rules that enable moving GC.
-2. Incompatible with general function calls, only ugly tricks that involve
-a trampoline.
-3. Inhibits optimization of the LLVM IR if we just generate pre-split code!
+This splitting transformation may work fine for implementing coroutines, but splitting functions apart at each function call renders LLVM's optimizations ineffective.
+This is why splitting for coroutine lowering is done late in the process.
 
+A front-end using a stackless runtime model has already threaded the secondary stack throughout the whole program, so it is not possible to avoid splitting the program apart when initially generating LLVM IR.
+With our proposed extensions, we would only be splitting basic blocks apart during code generation.
+In addition, a garbage-collected runtime system must understand the layout of objects within each frame, whereas this layout in the LLVM coroutine implementation is not defined.
+
+Thus, while it may be possible to try and extend coroutines in LLVM, extending Statepoints make much more sense.
+Coroutines are concerned with _returning_ a suspension to the _caller_, whereas a function call is fundamentally passing a suspension to a _callee_.
 
 #### Calling Conventions
 
 Calling conventions in LLVM can only specify the layout of function arguments
 on the internal stack.
-A sopisticated lowering of a calling convention can be used to implement many
-parts of this proposal (not all), however, it would need to be done specifically
-for one LLVM front-end.
+A sopisticated lowering of a calling convention is essentially what we implemented in our earlier prototype (see above), but it is not a complete solution.
+We're also aware of at least one other compiler, Standard ML of New Jersey, that is looking to make use of the proposed feature.
+So, hacking fixes into LLVM's code generator specific to the GHC calling convention is unattractive from a reusability standpoint.
 
 
 
