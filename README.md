@@ -26,7 +26,7 @@ All garbage-collected pointers that are live after the statepoint call returns m
 In the following (simplified) example, `@foo` performs the call `@bar(42)` using the `gc.statepoint` intrinsic. This use of the intrinsic tells the code generator that the garbage collector needs the ability to locate the GC pointer `%ptr` in `@foo`'s stack frame, since the collector may be invoked during the execution of `@bar`.
 
 ```llvm
-declare {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32 %arg)
+declare {%stack_ty, i32} @bar(%stack_ty, i32)
 
 define i32 @foo(i32 %arg) {
   ;;; ...
@@ -68,7 +68,7 @@ Thus, we add the ability to use an IR value as a pointer to memory where the fra
 The other required components of a stack frame, the call's return address and any register spills, are not real values in the IR.
 Thus, we add an abstraction to tell the code generator where they should be placed.
 
-### Examples
+### Function Call
 
 Let's consider our first example, where `@foo` calls `@bar`, written for a "stackless" model.
 Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`, as their first argument when called, and the first structure member on return.
@@ -79,7 +79,7 @@ This can be achieved using the proposed `gc.frame.*` intrinsics below:
 ```llvm
 %stack_ty = type i64*
 declare %stack_ty @AllocHeap(i32)
-declare {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32 %arg)
+declare {%stack_ty, i32} @bar(%stack_ty, i32)
 
 define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
   ;;; ...
@@ -136,112 +136,31 @@ This applies to both explicit LLVM IR values and any values generated during cod
 The size of this spill area will be filled in by the code generator via the `gc.frame.spillsz` intrinsic.
 As usual, it is assumed that the garbage collector will not modify the spill area or the return address.
 
------------
-
-<!--
-### Function Call
-
-Here is an example of making a function call, where we build a continuation
-frame where the return address is somewhere in the middle of the frame:
-
-```llvm
-
-define {i64*, i64} @bar(i64*, i64) {
-  ; ...
-}
-
-define void @foo(...) {
-
-; live vals == lv0 ... lvN
-
-; as defined by target: ptr is 8 bytes wide.
-;
-;                      addresses
-;  low                                             high
-;       -8          +8    +16    +24    .....     +72
-;       | lv0 | lv1 | lv2 |  RA  |   spill area   |
-;             SP
-;
-
-%buildTok = call token @llvm.frame.layout(i64* %sp,
-                              i32 16,  ; RA offset
-                              i32 24,  ; spill area offset
-                              i32 48,  ; spill area size
-                              i32 0,   ; call sp argnum
-                              i32 0    ; rtrn sp argnum
-                              )
-
-; record stack frame saves
-call void @llvm.frame.save(token %buildTok, i32* %lv0, i32 -8)
-call void @llvm.frame.save(token %buildTok, i64* %lv1, i32 0)
-call void @llvm.frame.save(token %buildTok, i64* %lv2, i32 8)
-; ...
-%returnTok = call token @llvm.frame.call(
-                            token %buildTok,  ; frame for this call
-                            {i64*, i64}(i64*, i64)* @bar, ; func
-                            i64 7  ; arg(s)
-                            )
-
-%accessTok = call token @llvm.frame.accessor(token %returnTok)
-%lv0_new = call i32* @llvm.frame.restore(token %accessTok, i32 -8)
-; ...
-%sp_new = call i64* @llvm.frame.sp(token %returnTok)
-; ...
-}
-```
-
-In fact, the SP is not defined to be at the top or bottom of any particular
-chunk of memory, it's just a location in memory from which we define a function call frame
-relative to that pointer.
-The SP is always passed to the callee so that it may return back to the
-caller.
-To be specific, after a call, we know the following information about the
-values within the frame before & after the call:
-
-- Non-pointer values and addrspace(0) pointers are bitwise equal.
-- All bits in the spill area were preserved.
-- The return address's value is undefined.
-
-Thus, addrspace(1) pointers may have been updated, i.e., by the garbage collector.
-
-What the callee *does* with the SP is not defined, we only require
-that the callee returns a pointer
-
-Notes:
-  - All offsets are relative to the location pointed to by SP.
-  - We don't specify a "size" for the frame because
-    that would only be needed if we were *moving* SP, but we are not.
-    Once SP is captured, it does not move.
-  - Any values *not* explicitly saved in the frame that are needed after
-    the call will be automatically stored in the spill area. This applies to
-    both explicit LLVM IR values and any values generated during codegen.
-  - If the spill area is insufficient, an error is thrown.
-
--->
 
 ### Function Return
 
-At the moment, the cleanest way to handle it seems to be attaching
-a partial-layout to the stack pointer.
-One benefit of this approach is that it can generalize in the future to
-returning values in the stack frame.
-
-Of course, it is up to the front-end to ensure that all callers & callees
-have matching layout specifications for the specific stack pointer.
+Let's now consider how `@bar` returns back to `@foo`.
+We again use the `gc.frame.layout` intrinsic to describe where
+the return address is located within the the frame `@bar` was given.
+It is up to the front-end to ensure that all frame layouts for callers & callees have matching layout specifications.
 
 ```llvm
-define {i64*, i64} @bar(i64*, i64) {
-  ; ...
-  %layoutTok = call token @llvm.frame.layout(i64* %sp, ; stack pointer
-                               i32 16    ; return address offset
+define {%stack_ty, i32} @bar(%stack_ty %sp_arg, i32) {
+  ;;; ...
+  %layoutTok = call token @llvm.gc.frame.layout(
+                               %stack_ty %sp_arg, ; stack pointer
+                               i32 16             ; return address offset
                                )
-  %retTok = call {i64*, i64} @llvm.frame.return.TYPE(token %layoutTok, i64 12)
-  ret {i64*, i64} %retTok
+  %retTok = call {%stack_ty, i64} @llvm.gc.frame.return(token %layoutTok, i32 12)
+  ret {%stack_ty, i32} %retTok
 }
 ```
 
-Note how the callee is also returning the stack pointer to its caller,
-which was wrapped up in the layout token.
+Note that only a partial layout is required for returning, as the rest of the frame is not needed by `@bar`.
+The vararg `gc.frame.return` intrinsic to bundles up the frame layout along with the returned values.
+In this example, 12 will be returned as the 2nd struct member, as the 1st member is always the stack pointer.
+It is also possible to have a value that is returned via the stack, though we are not pursuing this yet.
+
 
 Existing Prototype
 ------------------
@@ -249,8 +168,9 @@ Existing Prototype
 **TODO** link to a diff on github and explain the current state of the cpscall patch, and how this proposal is a more general version of that patch.
 
 
-Related Ideas
--------------
+
+Alternatives Considered
+-----------------------
 
 #### Coroutines
 
@@ -274,11 +194,14 @@ A sopisticated lowering of a calling convention can be used to implement many
 parts of this proposal (not all), however, it would need to be done specifically
 for one LLVM front-end.
 
+
+
 Notes
--------
+-----
 
 This `README` represents a plain-text summary of the full paper found under
 the `paper` directory.
+
 
 
 References
