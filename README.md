@@ -162,10 +162,22 @@ In this example, 12 will be returned as the 2nd struct member, as the 1st member
 It is also possible to have a value that is returned via the stack, though we are not pursuing this yet.
 
 
-Existing Prototype
-------------------
+Earlier Prototype
+-----------------
 
-**TODO** link to a diff on github and explain the current state of the cpscall patch, and how this proposal is a more general version of that patch.
+We previously developed a prototype of an [earlier proposal](http://lists.llvm.org/pipermail/llvm-dev/2017-April/112144.html), that works in many, but not all, cases for the Glasgow Haskell Compiler.
+In the prototype, `gc.frame.save` and `gc.frame.load` are directly written as `store` and `load` instructions.
+It also lacks `gc.frame.layout`, and instead the raw stack pointer is passed in a call.
+Thus, this proposal is a much improved version that adds:
+
+1. Tigher cooperation with the code generator to ensure that any spills generated during the lowering to assembly, or IR optimizations, are dealt with via the spill area specified in the `gc.frame.layout`.
+
+2. Usage of the `ret` instruction so that these intrinsics are better understood by IR optimizations.
+
+3. Usage of `gc.frame.save` and `gc.frame.load` instead of `store` and `load` to simplify data-flow analysis, as is the case for Statepoints.
+
+You can find the patch of this of the earlier proposal [here](https://github.com/kavon/ghc-llvm/compare/master...with-intrinsic).
+The general approach we took was to implement a pseudo-instruction that is expanded after ISel, so the majority of the patch is a function that performs the expansion.
 
 
 
