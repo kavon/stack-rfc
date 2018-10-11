@@ -21,6 +21,7 @@ Current Functionality
 
 The current [Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic) is a wrapper for a call to a function during which a garbage-collection cycle may occur.
 A Statepoint enables the construction of code with the property that a garbage-collected pointer's value may change during the call (to support moving GC). That is, after the call returns, you must use the new, relocated pointer returned by [`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic) in the IR, as the prior version is no longer valid.
+All garbage-collected pointers that are live after the statepoint call returns must appear as an argument to the intrinsic.
 
 In the following (simplified) example, `@foo` performs the call `@bar(42)` using the `gc.statepoint` intrinsic. This use of the intrinsic tells the code generator that the garbage collector needs the ability to locate the GC pointer `%ptr` in `@foo`'s stack frame, since the collector may be invoked during the execution of `@bar`.
 
@@ -71,8 +72,9 @@ Thus, we add an abstraction to tell the code generator where they should be plac
 
 Let's consider our first example, where `@foo` calls `@bar`, written for a "stackless" model.
 Both `@foo` and `@bar` now accept and return a secondary stack, `%sp`, as their first argument when called, and the first structure member on return.
-In addition, we want to specify the following layout for the frame to be compatible with our runtime system, from low to high addresses: GC pointers, return address, non-GC values, register spills.
-This can be achieved using the proposed `gc.frame` intrinsics below.
+
+In addition, we need to specify a layout for the frame to be compatible with our runtime system: from low to high addresses we have GC pointers, the return address, non-GC values, and then any register spills.
+This can be achieved using the proposed `gc.frame.*` intrinsics below:
 
 ```llvm
 %stack_ty = type i64*
@@ -125,17 +127,14 @@ define {%stack_ty, i32} @foo(%stack_ty %sp_arg, i32 %arg) {
 Note that the primary changes here are an expansion of certian aspects that were previously left undefined in `gc.statepoint` to allow more control by fron
 t-ends:
 
-** TODO: parallel structure, go over points 1 and 2 with this example in mind **
+(1) `gc.frame.layout` wraps the pointer to the frame (i.e., the location) along with some layout requirements for the non-representable values (the return address and spill area).
 
-(1) `gc.frame.layout` wraps the pointer to the frame (i.e., location) along with some layout requirements for the non-representable values, the return address and spill area.
+(2) The use of `gc.frame.save` corresponds to listing the live GC pointers in `gc.statepoint` calls so they are saved to the frame, however, now we can control the layout within the frame. Similarly, `gc.frame.load` corresponds to Statepoint's `gc.relocate` to freshly load the values that were saved to the frame.
 
-(2) `gc.frame.save` corresponds to the varargs list of GC pointers in `gc.statepoint` calls. `gc.frame.reload` corresponds to `gc.relocate`.
-
-
-In addition, for this example we saved the non-pointer value `%raw` to a specific location in the stack frame, but did not reload it after the call resumed.
-Just as in `gc.statepoint`, any values that are used after the call to `@bar` that are *not* explicitly saved in the frame will be automatically stored (and reloaded from) the spill area.
+Just as in `gc.statepoint`, any values that are used after the call to `@bar` that are *not* explicitly stored and reloaded from the frame will be automatically stored and reloaded from the frame's spill area.
 This applies to both explicit LLVM IR values and any values generated during code generation.
-As usual, it is assumed that the garbage collector will not modify the spill area or return address.
+The size of this spill area will be filled in by the code generator via the `gc.frame.spillsz` intrinsic.
+As usual, it is assumed that the garbage collector will not modify the spill area or the return address.
 
 -----------
 
