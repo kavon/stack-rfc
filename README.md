@@ -23,11 +23,11 @@ Stackless models are often used to implement lightweight [green threads](https:/
 For example, Cilk has used this type of green thread for their concurrent
 work-stealing runtime system [1,2].
 The stackless model can also be used to efficiently implement other control-flow
-mechanisms derived from `call-with-current-continuation`, which is found in a
-number of languages like
-[Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html)
-and is also
-[available in Boost](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html)
+mechanisms derived from `call-with-current-continuation`, which is available in a
+number of languages (e.g.,
+[Ruby](https://ruby-doc.org/core-2.5.1/Continuation.html))
+and the
+[Boost library](https://www.boost.org/doc/libs/1_68_0/libs/context/doc/html/context/cc.html)
 for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0534r3.pdf).
 Some compilers for functional languages such as [Haskell](https://en.wikipedia.org/wiki/Glasgow_Haskell_Compiler),
 [Standard ML](https://en.wikipedia.org/wiki/Standard_ML_of_New_Jersey),
