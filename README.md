@@ -12,14 +12,18 @@ that describes where the code generator has placed live pointers in each frame
 of the call stack. This information [can be
 used](https://github.com/kavon/llvm-statepoint-utils) by the collector of the
 front-end language's runtime system to identify live pointers in each stack
-frame during a garbage collection cycle.
+frame during garbage collection.
 
-The Statepoints system can go further to support runtime systems that have a
+The Statepoints system can be extended to support runtime systems that offer a
 "stackless" mode, where the normal call stack is not in use. A second stack,
-represented as a pointer value in the IR, is explicitly passed to the function as
-an argument to be used for further function calls and to return.
+allocated by the language's runtime system, is explicitly represented in LLVM IR
+and passed to a function as an argument to be used for further function
+calls and to return to the caller.
+Stackless execution models are often used to implement efficient [green threads](https://en.wikipedia.org/wiki/Green_threads) and stackful coroutines.
 
-Stackless models are often used to implement lightweight [green threads](https://en.wikipedia.org/wiki/Green_threads).
+**TODO: conclude with a summary of what this proposal is about, etc.**
+
+<!--
 For example, Cilk has used this type of green thread for their concurrent
 work-stealing runtime system [1,2].
 The stackless model can also be used to efficiently implement other control-flow
@@ -32,87 +36,44 @@ for [C++ proposal P0534R3](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/20
 Some compilers for functional languages such as [Haskell](https://en.wikipedia.org/wiki/Glasgow_Haskell_Compiler),
 [Standard ML](https://en.wikipedia.org/wiki/Standard_ML_of_New_Jersey),
 and Scheme also use this "stackless" approach.
+-->
 
 
 
-Current Functionality
----------------------
 
-The current
-[Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic)
-is a wrapper for a call to a function during which a garbage-collection cycle
-may occur. A Statepoint enables the construction of code with the property that
-a garbage-collected pointer's value may change during the call (to support
-moving GC). That is, after the call returns, you must use the new, relocated
-pointer returned by
-[`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic)
-in the IR, as the prior version is no longer valid. All garbage-collected
-pointers that are live after the statepoint call returns must appear as an
-argument to the intrinsic.
+Requirements
+------------
 
-In the following (simplified) example, `@foo` performs the call `@bar(42)` using
-the `gc.statepoint` intrinsic. This use of the intrinsic tells the code
-generator that the garbage collector needs the ability to locate the GC pointer
-`%ptr` in `@foo`'s stack frame, since the collector may be invoked during the
-execution of `@bar`.
+There are only two changes needed in LLVM to support a stackless runtime model
+in a garbage-collected runtime system:
 
-```llvm
-declare {%stack_ty, i32} @bar(%stack_ty, i32)
-
-define i32 @foo(i32 %arg) {
-  ;;; ...
-  %ptr = ; an i64*, tracked by the GC
-  %raw = ; an i32
-
-  ;;; perform the call @bar(42)
-  %tok = call token @llvm.gc.statepoint(
-             i32 (i32) @bar, ; callee
-             i32 42,         ; arg(s)
-             i64* %ptr       ; gc pointer(s)
-             )
-
-  ;;; %ptr is now invalid. must use relocated version.
-  %relo_ptr = call i64* @llvm.gc.relocate(token %tok, i32 1)
-
-  ;;; obtain the value returned by @bar
-  %retVal = call i32 @llvm.gc.result(token %tok)
-
-  ;;; ... uses of %raw, %relo_ptr, etc ...
-}
-```
-
-The implementation of Statepoints in the code generator is responsible for
-lowering the `gc.statepoint` call into an ordinary call where, just before the
-call, the GC pointers are always saved somewhere in the stack frame for the
-collector to find.
-The location chosen within the stack frame is communicated to the garbage
-collector through an additional data section,
-[the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format),
-that is added to the assembly / object file.
-
-
-
-Proposal
---------
-
-I'm proposing a extension to the existing GC Statepoint functionality, which I
-have separated into two parts for clarity:
-
-(1) To support the stackless model, we need the ability to specify the
-_location_ of the stack frame in the heap. We cannot use the existing stack that
+(1) We need the ability to specify the
+**location** of the stack frame in the heap. We cannot use the existing stack that
 LLVM assumes is present, since in a stackless model we have a second "stack"
 (which is typically heap allocated) that we explicitly initialize and use. Thus,
 we add the ability to use an IR value as a pointer to memory where the frame
 should be allocated.
 
-(2) In addition, we need the ability to partially control the _layout_ of
+(2) We need the ability to partially control the **layout** of
 objects within the frame so that this second stack can be used by the code
-generated by the front-end. Specifying where GC pointers should be placed is
-pretty simple. The other required components of a stack frame, the call's return
-address and any register spills, are not real values in the IR. Thus, we add an
-abstraction to tell the code generator where they should be placed.
+generated by the language front-end and runtime system.
+Specifying where GC pointers should be placed is
+the primary requirement.
+The other components of a stack frame like the call's return
+address and any register spills are not real values in LLVM IR.
+Thus, we add an abstraction to inform the code generator about where such
+values can be placed in the frame.
 
-#### Function Call
+Proposal
+--------
+
+**TODO: Formal-ish definitions of the proposed intrinsics**
+
+
+Examples
+--------
+
+#### Function Calls
 
 Let's consider our first example, where `@foo` calls `@bar`, written for a
 "stackless" model. Both `@foo` and `@bar` now accept and return a secondary
@@ -221,6 +182,14 @@ returned as the 2nd struct member, as the 1st member is always the stack
 pointer. It is also possible to have a value that is returned via the stack,
 though we are not pursuing this yet.
 
+#### Green Threads
+
+**TODO: example IR for this**
+
+#### Coroutines
+
+**TODO: example IR for this**
+
 
 
 Earlier Prototype
@@ -298,6 +267,63 @@ convention is unattractive from a reusability standpoint.
 
 
 
+Background on Statepoints
+-------------------------
+
+As of today, the
+[Statepoint call intrinsic](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-statepoint-intrinsic)
+is a wrapper for a call to a function during which a garbage-collection cycle
+may occur. A Statepoint enables the construction of code with the property that
+a garbage-collected pointer's value may change during the call (to support
+moving GC). That is, after the call returns, you must use the new, relocated
+pointer returned by
+[`gc.relocate` intrinsics](https://llvm.org/docs/Statepoints.html#llvm-experimental-gc-relocate-intrinsic)
+in the IR, as the prior version is no longer valid. All garbage-collected
+pointers that are live after the statepoint call returns must appear as an
+argument to the intrinsic.
+
+In the following (simplified) example, `@foo` performs the call `@bar(42)` using
+the `gc.statepoint` intrinsic. This use of the intrinsic tells the code
+generator that the garbage collector needs the ability to locate the GC pointer
+`%ptr` in `@foo`'s stack frame, since the collector may be invoked during the
+execution of `@bar`.
+
+```llvm
+declare {%stack_ty, i32} @bar(%stack_ty, i32)
+
+define i32 @foo(i32 %arg) {
+  ;;; ...
+  %ptr = ; an i64*, tracked by the GC
+  %raw = ; an i32
+
+  ;;; perform the call @bar(42)
+  %tok = call token @llvm.gc.statepoint(
+             i32 (i32) @bar, ; callee
+             i32 42,         ; arg(s)
+             i64* %ptr       ; gc pointer(s)
+             )
+
+  ;;; %ptr is now invalid. must use relocated version.
+  %relo_ptr = call i64* @llvm.gc.relocate(token %tok, i32 1)
+
+  ;;; obtain the value returned by @bar
+  %retVal = call i32 @llvm.gc.result(token %tok)
+
+  ;;; ... uses of %raw, %relo_ptr, etc ...
+}
+```
+
+The implementation of Statepoints in the code generator is responsible for
+lowering the `gc.statepoint` call into an ordinary call where, just before the
+call, the roots are always saved somewhere in the stack frame for the
+collector to find.
+The location chosen within the stack frame is communicated to the garbage
+collector through an additional data section,
+[the stackmap](https://llvm.org/docs/StackMaps.html#stackmap-format),
+that is added to the assembly / object file.
+
+
+
 Notes
 -----
 
@@ -306,7 +332,7 @@ the `paper` directory.
 
 
 
-References
+Further Reading
 ----------
 
 1. Blumofe, Robert D., et al. "Cilk: An efficient multithreaded runtime system."
