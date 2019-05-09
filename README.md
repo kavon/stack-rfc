@@ -14,8 +14,9 @@ Stackless execution models are often used to implement efficient
 [green threads](https://en.wikipedia.org/wiki/Green_threads) and stackful coroutines.
 
 A language front-end that utilizes this compilation model faces a challenge in using
-LLVM due to LLVM IR's lack of expressiveness in terms of calling conventions and call stacks.
-This proposal aims to unite the these mismatched models.
+LLVM due to LLVM IR's lack of expressiveness in terms of
+calling conventions with respect to call stacks.
+This proposal aims to remedy this situation without radical changes to LLVM IR.
 
 **TODO: conclude with a better summary of what this proposal is about, etc.**
 
@@ -24,24 +25,80 @@ This proposal aims to unite the these mismatched models.
 Proposal
 --------
 
-There are only two changes needed in LLVM to support a stackless runtime model,
-whether or not the runtime system uses garbage collection.
+To support functions operating in a "stackless" dicipline,
+there are two main requirements.
 
 #### Stack Location
 
 We need the ability to specify the
-*location* of the stack frame to be used by the function.
+*location* of the stack frame to be used by the stackless function.
 We cannot use the existing stack that
-LLVM assumes is present in the standard register for that platform,
-since in a stackless model we have a second "stack"
-(which is typically heap allocated) that must be used instead.
+LLVM implicitly allocates and manages in the standard register for that platform,
+since in a stackless model that stack should not be used.
+Instead, we have a second "stack"
+(which is typically heap allocated) that must be used for the function's
+frame instead.
 
 While a custom prologue/epilogue can be used to implement different strategies
 for allocating stack space (e.g., segmented stacks), the register used to hold
-the stack pointer appears to be hardwired for each target achitecture
-and not customizable for each calling convention on that architecture.
-Thus, I'm proposing changes to calling convention specification such that the
-stack pointer (and frame pointer) registers can be specified.
+the stack pointer appears to be hardwired for each target achitecture in LLVM,
+and thus not customizable for each calling convention on that architecture.
+Thus, I'm proposing changes to calling convention specification such that
+
+**EITHER**
+
+1. an "alternate" stack register can be defined, and if present, used for that
+function. the existing primary stack is assumed to still exist with standard
+properties (i.e., alignment, growth direction), we just don't allocate a frame there.
+
+2. the primary stack's register is customizable. if a stack using the old register
+   will still be hanging around, that register should be marked as reserved / unused.
+
+Goal is to have calls from an alt-function to a standard function
+work seamlessly. Question is, how do we
+pass our alternate stack to the callee for, e.g., gc purposes?
+In addition, how does an alt-function return to a standard function?
+How does a standard function call an alt-function.
+Perhaps we need to have a `@llvm.stackpointer()` intrinsic to reify the value for the sole purpose of passing it in an argument register to the callee?
+
+We might need multiple calling conventions on functions to make the transitions
+to and from a primary/secondary stack operation work.
+The primary reason for this is that a calling convention in LLVM defines both its
+call and return convention.
+
+```
+case (caller function, call instruction, callee function) of
+
+(X, Y, Z) if X = Y = Z
+                  => easy case.
+
+(std_cc, alt_enter_cc, alt_enter_cc) =>
+               all callers of the callee pass an alt stack in the first
+               argument register of this convention.
+               This argument register uses the same register as the alt-stack
+               in alt_cc.
+               the caller's continuation is saved in the primary
+               stack.
+               Thus, returns from this function are always performed on std-stack.
+
+(alt_enter_cc, alt_cc, alt_cc) =>
+               the caller's continuation is saved on the _alternate_
+               stack and passed to the callee.
+
+
+(alt_cc, alt_leave_cc, alt_leave_cc) =>
+              the caller saves its continuation to the alt stack.
+              the callee returns via the alt stack.
+              otherwise, the callee allocates its continuation(s) on the
+              primary stack.
+
+(alt_cc, std_cc, std_c) =>
+              the caller's continuation is saved on the alt stack,
+              and the primary stack is prepared to resume control
+              from the callee.
+              The callee returns using the primary stack.
+
+```
 
 
 <!--
