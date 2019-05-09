@@ -20,9 +20,9 @@ Problem
 -------
 
 The major difficulty in supporting a "stackless" runtime model in LLVM is that
-calling conventions have no control over which register is used for stack
-allocations. Currently, (at least for x86) its up to each target to define the
-stack pointer register and its conventions (e.g., growth direction, alignment).
+calling conventions have no control over which register holds the stack pointer.
+Currently, (at least for x86) its up to each target to define the stack pointer
+register and its conventions (e.g., growth direction, alignment).
 
 Much of the allocation & alignment of the stack pointer can be controlled by
 defining new prologue-epliogue insertion implementations as other languages have
