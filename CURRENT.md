@@ -45,6 +45,26 @@ not be hard to add.
 
 Cons? Statepoints are currently only implemented for x86-64. We will want to implement it for ARM too.
 
+### Rough Code Example
+
+```llvm
+define void @someFunc ( ... ) { 
+    %slot1 = alloca i64*, align 8
+    %ra_slot = alloca i8*, align 8 
+    store i64* <heap object pointer>, i64** %slot1
+    store i8* blockaddress(@someFunc, %returnPoint), i8** %ra_slot  
+    %retArgs = callbr {i64, i64, i64} @llvm.experimental.statepoint( 
+                                        <function pointer>, <arguments>, %slot1, <other GC tracked stack slots> ) 
+               to label %returnPoint
+
+returnPoint:
+    %arg1 = select i32 0, %retArgs
+    ...
+    < rest of code >
+
+
+}
+```
 
 ### Writing
 
