@@ -22,7 +22,7 @@ https://groups.google.com/d/msg/llvm-dev/tq1KpUsOsBU/4id2FfMTBgAJ
 
 
 (2)  With Callbr in hand, we primarily need a way to describe the layout of heap-allocated stack frames.
-The GC Statepoints infrastructure already has undocumented support for custom layouts
+The GC Statepoints infrastructure [already has undocumented support for custom layouts](https://github.com/llvm/llvm-project/commit/f8f0933b488bcbd1cc4b69a93bb18f8c33ce6847)
 that are specified via allocas, similar to the less-maintained GC Root infrastructure.
 Essentially, a pointer to an alloca is treated as a stack frame slot that contains a live pointer by Statepoints.
 Since allocas are allocated on the stack in-order and respect alignments specified by the front-end.
