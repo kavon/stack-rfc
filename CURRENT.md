@@ -58,9 +58,9 @@ A design document that has not yet been updated with the new plans: https://gith
 
 These were found in the initial implementation. The workarounds are essentially disabling certain optimizations, which is not sustainable:
 
-Bug 1. https://github.com/kavon/ghc-llvm/issues/11
-Bug 2. https://github.com/kavon/ghc-llvm/issues/12
-Bug 3. https://github.com/kavon/ghc-llvm/issues/20
+1. https://github.com/kavon/ghc-llvm/issues/11
+2. https://github.com/kavon/ghc-llvm/issues/12
+3. https://github.com/kavon/ghc-llvm/issues/20
 
 ### References
 
